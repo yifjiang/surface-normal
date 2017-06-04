@@ -8,7 +8,7 @@ class normal_negative_cos_crit(nn.Module):
 		super(normal_negative_cos_crit, self).__init__()
 
 	def forward(self, input, target):
-		output = 0
+		output = Variable(torch.Tensor([0])).cuda()
 		n_points = 0
 		for batch_idx in range(0,input.size()[0]):
 			n_points += target[batch_idx]['n_point']
@@ -21,3 +21,15 @@ class normal_negative_cos_crit(nn.Module):
 
 		return output/n_points
 
+if __name__ == '__main__':
+	#test
+	crit = normal_negative_cos_crit()
+	input = Variable(torch.ones(1,3,5,5).cuda(), requires_grad = True)
+	target[0] = {}
+	target[0]['x'] = Variable(torch.Tensor([0,1])).cuda()
+	target[0]['y'] = Variable(torch.Tensor([0,0])).cuda()
+	target[0]['normal'] = Variable(torch.Tensor([[1,0],[0,1],[0,0]])).cuda()
+	loss = crit(input, target)
+	print(loss)
+	loss.backward()
+	print(input.grad)

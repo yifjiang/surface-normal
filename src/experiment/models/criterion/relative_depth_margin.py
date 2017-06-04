@@ -9,11 +9,12 @@ class relative_depth_crit(nn.Module):
 		z_A = z_A[0]#may not need this
 		z_B = z_B[0]
 		z_A_z_B = z_A-z_B
+		margin = self.margin.repeat(z_A_z_B.size())
 		return mask*torch.log(1+torch.exp(-torch.min(ground_truth*z_A_z_B, margin)))+(1-mask)*torch.max(z_A_z_B*z_A_z_B, margin*margin)
 
 	def __init__(self, margin):
 		super(relative_depth_crit, self).__init__()
-		self.margin = margin
+		self.margin = Variable(torch.Tensor([margin])).cuda()
 
 	def forward(self, input, target):
 		self.output = Variable(torch.Tensor([0])).cuda()
@@ -37,9 +38,15 @@ class relative_depth_crit(nn.Module):
 		return self.output/n_point_total#n_point_total should be of type int or IntTensor
 
 if __name__ == '__main__':
-	crit = relative_depth_crit()
+	crit = relative_depth_crit(3)
 	print(crit)
-	x = Variable(torch.zeros(1,1,6,6).cuda(), requires_grad = True)
+	x = torch.zeros(1,1,6,6).cuda()
+	x[0,0,1,1] = 2
+	x[0,0,2,2] = 5
+	x[0,0,3,3] = -4
+	x[0,0,4,4] = -4
+	x[0,0,5,5] = 4
+	x = Variable(x,requires_grad = True)
 	target = {}
 	target[0] = {}
 	target[0]['x_A'] = Variable(torch.Tensor([0,1,2,3,4,5])).cuda()

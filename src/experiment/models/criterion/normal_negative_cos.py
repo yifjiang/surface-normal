@@ -8,6 +8,7 @@ class normal_negative_cos_crit(nn.Module):
 		super(normal_negative_cos_crit, self).__init__()
 
 	def forward(self, input, target):
+		"""input shape: [batch_size, 3, y, x]; normal shape: [3,n_point]"""
 		output = Variable(torch.Tensor([0])).cuda()
 		n_points = 0
 		for batch_idx in range(0,input.size()[0]):

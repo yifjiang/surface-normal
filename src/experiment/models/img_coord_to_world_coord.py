@@ -7,19 +7,23 @@ class img_coord_to_world_coord(nn.Module):
 	def __init__(self, camera):
 		super(img_coord_to_world_coord, self).__init__()
 		self.camera = camera
-		self.x_factor = Variable(torch.range(0,camera['input_width']).view(1,-1).repeat(camera['input_height'],1).cuda())
-		self.y_factor = Variable(torch.range(0,camera['input_height']).view(-1,1).repeat(1,camera['input_width']).cuda())
+		self.x_factor = Variable(torch.arange(0,camera['input_width']).view(1,-1).repeat(camera['input_height'],1).cuda())
+		self.y_factor = Variable(torch.arange(0,camera['input_height']).view(-1,1).repeat(1,camera['input_width']).cuda())
 		self.x_factor = (self.x_factor-camera['cx'])/camera['fx']
 		self.y_factor = (self.y_factor-camera['cy'])/camera['fy']
 		self.z_factor = Variable(torch.ones(camera['input_height'],camera['input_width']).cuda())
-		self.per_batch_factor = Variable(torch.Tensor([self.x_factor,self.y_factor, self.z_factor]).cuda())
+		self.per_batch_factor = Variable(torch.Tensor(3,camera['input_height'],camera['input_width']).cuda())
+		self.per_batch_factor[0] = self.x_factor
+		self.per_batch_factor[1] = self.y_factor
+		self.per_batch_factor[2] = self.z_factor
+		#self.per_batch_factor = Variable(torch.Tensor([self.x_factor,self.y_factor, self.z_factor]).cuda())
 
-	def forward(input):
+	def forward(self,input):
 		output = Variable(torch.Tensor(input.size()[0],3,input.size()[2],input.size()[3]).cuda())
 		output[:,0,:,:] = input
 		output[:,1,:,:] = input
 		output[:,2,:,:] = input
-		factor = self.per_batch_factor.view(1,self.camera['input_height'], self.camera['input_width']).repeat(input.size()[0],1,1,1)
+		factor = self.per_batch_factor.view(1,3,self.camera['input_height'], self.camera['input_width']).repeat(input.size()[0],1,1,1)
 		return output*factor
 
 if __name__ == '__main__':

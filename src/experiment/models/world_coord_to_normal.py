@@ -12,9 +12,6 @@ class vectorize(nn.Module):
 
 	def forward(self,input):
 		output = self.model(input)
-		# self.model(input[:,0:1,:,:])
-		# output[:,1:2,:,:] = self.model(input[:,1:2,:,:])
-		# output[:,2:3,:,:] = self.model(input[:,2:3,:,:])
 		return output 
 
 class spatial_normalization(nn.Module):
@@ -61,9 +58,10 @@ if __name__ == '__main__':
 	# test
 	input = torch.zeros(1,3,5,5)
 	input[0,0,1,0] = -1
-	input[0,0,1,2] = 1
+	input[0,0,1,2] = 2
 	input[0,1,0,1] = -1
 	input[0,1,2,1] = 1
 	input = Variable(input.cuda())
 	wtn = world_coord_to_normal().cuda()
+	print(input)
 	print(wtn(input))

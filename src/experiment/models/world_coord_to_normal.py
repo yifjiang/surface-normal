@@ -6,15 +6,15 @@ class vectorize(nn.Module):
 	"""docstring for vectorize"""
 	def __init__(self, kernel):
 		super(vectorize, self).__init__()
-		self.model = nn.Conv2d(1,1,(kernel.size()[0],kernel.size()[1]), 1,1).cuda()
+		self.model = nn.Conv2d(3,3,(kernel.size()[0],kernel.size()[1]), 1,1)
 		self.model.weight.data=kernel
 		self.model.bias.data.zero_()
 
 	def forward(self,input):
-		output = Variable(torch.Tensor(input.size()).cuda())
-		self.model(input[:,0:1,:,:])
-		output[:,1:2,:,:] = self.model(input[:,1:2,:,:])
-		output[:,2:3,:,:] = self.model(input[:,2:3,:,:])
+		output = self.model(input)
+		# self.model(input[:,0:1,:,:])
+		# output[:,1:2,:,:] = self.model(input[:,1:2,:,:])
+		# output[:,2:3,:,:] = self.model(input[:,2:3,:,:])
 		return output 
 
 class spatial_normalization(nn.Module):
@@ -38,8 +38,14 @@ class world_coord_to_normal(nn.Module):
 	"""docstring for world_coord_to_normal"""
 	def __init__(self):
 		super(world_coord_to_normal, self).__init__()
-		kernel_up = torch.Tensor([[[[0,-1,0],[0,0,0],[0,1,0]]]])
-		kernel_left = torch.Tensor([[[[0,0,0],[-1,0,1],[0,0,0]]]])
+		kernel_up = torch.zeros(3,3,3,3)
+		kernel_up[0,0] = torch.Tensor([[[[0,-1,0],[0,0,0],[0,1,0]]]])
+		kernel_up[1,1] = torch.Tensor([[[[0,-1,0],[0,0,0],[0,1,0]]]])
+		kernel_up[2,2] = torch.Tensor([[[[0,-1,0],[0,0,0],[0,1,0]]]])
+		kernel_left = torch.zeros(3,3,3,3)
+		kernel_left[0,0] = torch.Tensor([[[[0,0,0],[-1,0,1],[0,0,0]]]])
+		kernel_left[1,1] = torch.Tensor([[[[0,0,0],[-1,0,1],[0,0,0]]]])
+		kernel_left[2,2] = torch.Tensor([[[[0,0,0],[-1,0,1],[0,0,0]]]])
 		self.v_up = vectorize(kernel_up)
 		self.v_left = vectorize(kernel_left)
 		self.normalize = spatial_normalization()
@@ -59,5 +65,5 @@ if __name__ == '__main__':
 	input[0,1,0,1] = -1
 	input[0,1,2,1] = 1
 	input = Variable(input.cuda())
-	wtn = world_coord_to_normal()
+	wtn = world_coord_to_normal().cuda()
 	print(wtn(input))

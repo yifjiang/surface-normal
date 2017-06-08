@@ -1,4 +1,4 @@
-import hourglass
+import .hourglass
 
 class Model(nn.Module):
 	def __init__(self):

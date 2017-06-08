@@ -24,7 +24,7 @@ class spatial_normalization(nn.Module):
 		square_sum = input[:,0,:,:]*input[:,0,:,:]+input[:,1,:,:]*input[:,1,:,:]+input[:,2,:,:]*input[:,2,:,:]
 		square_sum = torch.sqrt(square_sum)
 		square_sum += (square_sum==0).float()*0.0000000001
-		output = input
+		output = input.clone()
 		output[:,0,:,:]/=square_sum
 		output[:,1,:,:]/=square_sum
 		output[:,2,:,:]/=square_sum

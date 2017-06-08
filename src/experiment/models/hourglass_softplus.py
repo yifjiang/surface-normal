@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from torch.autograd import Variable
-import models.hourglass as hourglass
+from models import hourglass
 
 class Model(nn.Module):
 	def __init__(self):

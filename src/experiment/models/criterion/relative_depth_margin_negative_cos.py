@@ -50,7 +50,7 @@ if __name__ == '__main__':
 
 	crit = relative_depth_negative_cos(1,3,camera).cuda()
 
-	x = torch.zeros(1,1,6,6).cuda()
+	x = torch.rand(1,1,6,6).cuda()
 	x[0,0,1,1] = 2
 	x[0,0,2,2] = 5
 	x[0,0,3,3] = -4
@@ -71,8 +71,8 @@ if __name__ == '__main__':
 
 	target_n = {}
 	target_n[0] = {}
-	target_n[0]['x'] = Variable(torch.Tensor([0,1])).cuda()
-	target_n[0]['y'] = Variable(torch.Tensor([0,0])).cuda()
+	target_n[0]['x'] = Variable(torch.Tensor([1,4])).cuda()
+	target_n[0]['y'] = Variable(torch.Tensor([1,3])).cuda()
 	target_n[0]['normal'] = Variable(torch.Tensor([[1,0],[0,1],[0,0]])).cuda()
 	target_n[0]['n_point'] = 2
 	target_n['n_sample'] = 1

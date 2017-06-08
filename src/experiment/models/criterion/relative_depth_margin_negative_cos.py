@@ -20,7 +20,7 @@ class relative_depth_negative_cos(nn.Module):
 			)
 		self.w_normal = w_normal
 
-	def forward(input, target):
+	def forward(self, input, target):
 		n_depth = target[0]['n_sample']
 		n_normal = target[1]['n_sample']
 
@@ -41,8 +41,8 @@ class relative_depth_negative_cos(nn.Module):
 if __name__ == '__main__':
 	#test
 	camera = {}
-	camera['input_width'] = 5
-	camera['input_height'] = 5
+	camera['input_width'] = 6
+	camera['input_height'] = 6
 	camera['cx'] = 2
 	camera['cy'] = 3
 	camera['fx'] = 6

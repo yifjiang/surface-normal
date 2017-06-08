@@ -149,7 +149,7 @@ def get_model():
 	# 	nn.Conv2d(64,1,3,padding=1)
 	# 	).cuda()
 
-from .criterion.relative_depth import relative_depth_crit
+from .criterion.relative_depth import relative_depth_margin_negative_cos
 def get_criterion():
 	return relative_depth_crit()
 

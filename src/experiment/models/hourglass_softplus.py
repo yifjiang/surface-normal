@@ -18,7 +18,7 @@ class Model(nn.Module):
 def get_model():
 	return Model().cuda()
 
-from .criterion.relative_depth import relative_depth_crit
+from .criterion.relative_depth_margin_negative_cos import relative_depth_negative_cos
 def get_criterion():
 	return relative_depth_crit()
 

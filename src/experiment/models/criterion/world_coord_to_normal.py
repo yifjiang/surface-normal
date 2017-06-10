@@ -23,7 +23,7 @@ class spatial_normalization(nn.Module):
 		# input is N x 3 x H x W
 		square_sum = input[:,0,:,:]*input[:,0,:,:]+input[:,1,:,:]*input[:,1,:,:]+input[:,2,:,:]*input[:,2,:,:]
 		square_sum = torch.sqrt(square_sum)
-		square_sum = square_sum + (square_sum==0).float()*0.0000000001
+		square_sum = square_sum + (square_sum==0).float()*0.0000000001#might still cause some problem!
 		output = input
 		output = output/square_sum.repeat(1,3,1,1)
 		return output

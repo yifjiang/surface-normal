@@ -3,10 +3,12 @@ import h5py
 import math
 import random
 import torch
+import array
 from common.NYU_params import *
 from DataPointer import DataPointer
 from torchvision import transforms
 from PIL import Image
+from common.NYU_params import g_input_height, g_input_width, g_large_input_width, g_large_input_height
 
 
 # _batch_target_relative_depth_gpu = {}
@@ -20,24 +22,42 @@ from PIL import Image
 
 class DataLoader(object):
 	"""docstring for DataLoader"""
-	def __init__(self, relative_depth_filename):
+	def __init__(self, relative_depth_filename, normal_filename, n_max_depth = None, n_max_normal = None):
 		super(DataLoader, self).__init__()
 		print(">>>>>>>>>>>>>>>>> Using DataLoader")
-		self.parse_depth(relative_depth_filename)
+
+		print("n_max_depth =", n_max_depth, "n_max_normal =", n_max_normal)
+
+		self.parse_depth_and_normal(relative_depth_filename)
 		self.data_ptr_relative_depth = DataPointer(self.n_relative_depth_sample)
-		print("DataLoader init: \n \t{} relative depth samples \n ".format(self.n_relative_depth_sample))
+		self.data_ptr_normal = DataPointer(self.n_normal_sample)
+		print("DataLoader init: \n \t{} relative depth samples \n \t{} normal samples".format(self.n_relative_depth_sample, self.n_normal_sample))
 
 
 
-	def parse_relative_depth_line(self, line):
+	def parse_relative_depth_line(self, line, n_max_depth):
 		splits = line.split(',')
 		sample = {}
 		sample['img_filename'] = splits[0]
-		# print(splits)
 		sample['n_point'] = int(splits[2])
+		if n_max_depth is not None:
+			sample['n_point'] = min(n_max_depth, sample['n_point'])
 		return sample
 
-	def parse_csv(self, filename, parsing_func):
+	def parse_normal_line(self, line, n_max_normal):
+		splits = line.split(',')
+		sample = {}
+		sample['img_filename'] = splits[0]
+		sample['n_point'] = int(splits[1])
+
+		if n_max_normal is not None:
+			sample['n_point'] = min(n_max_normal, sample['n_point'])
+
+		if len(splits) > 2:
+			sample['focal_length'] = int(splits[2])
+		return sample
+
+	def parse_csv(self, filename, parsing_func, n_max_point):
 		_handle = {}
 
 		if filename == None:
@@ -55,7 +75,7 @@ class DataLoader(object):
 		while _sample_idx < _n_lines:
 			this_line = csv_file_handle.readline()
 			if this_line != '':
-				_handle[_sample_idx] = parsing_func(this_line)
+				_handle[_sample_idx] = parsing_func(this_line, n_max_point)
 				_sample_idx+=1
 			else:
 				_n_lines-=1
@@ -65,7 +85,7 @@ class DataLoader(object):
 
 		return _handle
 
-	def parse_depth(self, relative_depth_filename):
+	def parse_depth_and_normal(self, relative_depth_filename, normal_filename):
 		if relative_depth_filename is not None:
 			_simplified_relative_depth_filename = relative_depth_filename.replace('.csv', '_name.csv')
 			if os.path.isfile(_simplified_relative_depth_filename):
@@ -75,7 +95,7 @@ class DataLoader(object):
 				print("executing:{}".format(command))
 				os.system(command)
 
-			self.relative_depth_handle = self.parse_csv(_simplified_relative_depth_filename, self.parse_relative_depth_line)
+			self.relative_depth_handle = self.parse_csv(_simplified_relative_depth_filename, self.parse_relative_depth_line, self.n_max_depth)
 
 			hdf5_filename = relative_depth_filename.replace('.csv', '.h5')
 			self.relative_depth_handle['hdf5_handle'] = h5py.File(hdf5_filename, 'r')
@@ -83,14 +103,18 @@ class DataLoader(object):
 		else:
 			self.relative_depth_handle = {}
 
+		if normal_filename is not None:
+			self.normal_handle = parse_csv(normal_filename, parse_normal_line, self.n_max_normal)
+		else:
+			self.normal_handle = {}
+
 		self.n_relative_depth_sample = len(self.relative_depth_handle)-1
+		self.n_normal_sample = len(self.normal_handle)#check this!
 
 	def close():
 		pass
 
 	def mixed_sample_strategy1(self, batch_size):
-		# n_depth = torch.rand(1,1)
-		# n_depth.random_(from=0, to=batch_size)
 		n_depth = random.randint(0,batch_size-1)
 		return n_depth, batch_size - n_depth
 
@@ -99,17 +123,34 @@ class DataLoader(object):
 		return n_depth, batch_size - n_depth #careful about the index
 
 
-	def load_indices(self, depth_indices):
-		if depth_indices is not None:
-			n_depth = len(depth_indices)
+	def load_indices(self, depth_indices, normal_indices, b_load_gtz = False):
+		if depth_indices is not None and self.n_relative_depth_sample>0:
+			n_depth = depth_indices.size()[0]
 		else:
 			n_depth = 0
 
-		batch_size = n_depth
+		if normal_indices is not None and self.n_normal_sample > 0:
+			n_normal = normal_indices.size()[0]
+		else:
+			n_normal = 0
+
+		if n_depth == 0 and n_normal == 0:
+			print("---->>>> Warning: Both n_depth and n_normal equal 0 in DataLoader:load_indices().")
+			assert(false)
+
+		batch_size = n_depth + n_normal
 		color = torch.Tensor(batch_size, 3, g_input_height, g_input_width) # now it's a Tensor, remember to make it a Variable
+		if b_load_gtz and n_depth > 0:
+			_batch_target_relative_depth_gpu['gt_depth'] = torch.Tensor(batch_size, g_large_input_height, g_large_input_width)# now it's a Tensor, remember to make it a Variable
+		if b_load_gtz and n_normal > 0:
+			_batch_target_normal_gpu['gt_depth'] = torch.Tensor(batch_size, g_large_input_height, g_large_input_width)# now it's a Tensor, remember to make it a Variable
+
 
 		_batch_target_relative_depth_gpu = {}
 		_batch_target_relative_depth_gpu['n_sample'] = n_depth
+
+		_batch_target_normal_gpu = {}
+		_batch_target_normal_gpu['n_sample'] = n_normal
 
 
 
@@ -133,6 +174,16 @@ class DataLoader(object):
 			# image = Variable(image, require_grad=True)
 			color[i,:,:,:].copy_(image)
 
+			if b_load_gtz:
+				gt_z_filename = img_name.replace('.png','_gt_depth.h5')
+				if os.path.isfile(gt_z_filename):
+					gtz_h5_handle = h5py.File(gtz_h5_handle, 'r')
+					_batch_target_relative_depth_gpu['gt_depth'][i,:,:].copy_(torch.Tensor(gtz_h5_handle['/gt_depth']))
+					gtz_h5_handle.close()
+				else:
+					print("File not found:", gt_z_filename)
+
+
 			_hdf5_offset = int(5*idx) #zero-indexed
 			# print(self.relative_depth_handle)
 			# print(n_point)
@@ -152,12 +203,68 @@ class DataLoader(object):
 			_batch_target_relative_depth_gpu[i]['ordianl_relation']= torch.autograd.Variable(torch.from_numpy(_this_sample_hdf5[4])).cuda()
 			_batch_target_relative_depth_gpu[i]['n_point'] = n_point
 
+		_batch_target_relative_depth_gpu['gt_depth'] = torch.autograd.Variable(_batch_target_relative_depth_gpu['gt_depth'].cuda())
+
+		_batch_target_normal_gpu['focal_length'] = torch.Tensor(n_normal,1)#remember to make this a Variable!
+
+		for i in range(n_depth,batch_size):
+			idx = normal_indices[i - n_depth]
+			img_name = self.normal_handle[idx]['img_filename']
+			n_point = self.normal_handle[idx]['n_point']
+
+			_batch_target_normal_gpu['focal_length'][i - n_depth, 0] = self.normal_handle[idx]['focal_length']
+
+			color[i,:,:,:].copy_(loader(Image.open(img_name)).float())
+
+			if b_load_gtz:
+				gt_z_filename = img_name.replace('.png','_gt_depth.h5')
+				if os.path.isfile(gt_z_filename):
+					gtz_h5_handle = h5py.File(gtz_h5_handle, 'r')
+					_batch_target_normal_gpu['gt_depth'][i - n_depth,:,:].copy_(torch.Tensor(gtz_h5_handle['/gt_depth']))
+					gtz_h5_handle.close()
+				else:
+					print("File not found:", gt_z_filename)
+
+			normal_name = img_name.replace('.png','_normal.bin')
+			file = open(normal_name,'rb')
+			normal = array.array('d')
+			normal.fromfile(file,5*n_point)
+			file.close()
+			normal = torch.Tensor(normal).view(n_point,5)
+
+			_batch_target_normal_gpu[i - n_depth]['x'] = torch.autograd.Variable(normal[0].int().cuda())
+			_batch_target_normal_gpu[i - n_depth]['y'] = torch.autograd.Variable(normal[1].int().cuda())
+			_batch_target_normal_gpu[i - n_depth]['normal'] = torch.autograd.Variable(normal[2:5].cuda())
+			_batch_target_normal_gpu[i - n_depth]['n_point'] = n_point
+
+		_batch_target_normal_gpu['gt_depth'] = torch.autograd.Variable(_batch_target_normal_gpu['gt_depth'].cuda())
+		_batch_target_normal_gpu['focal_length'] = torch.autograd.Variable(_batch_target_normal_gpu['focal_length'].cuda())
+
+
 
 		return torch.autograd.Variable(color.cuda()), _batch_target_relative_depth_gpu
 
 	def load_next_batch(self, batch_size):
-		depth_indices = self.data_ptr_relative_depth.load_next_batch(batch_size)
-		return self.load_indices(depth_indices)
+
+		if self.n_normal_sample>0 and self.n_relative_depth_sample>0:
+			n_depth, n_normal = mixed_sample_strategy1(batch_size)
+		elif self.n_normal_sample > 0:
+			n_normal = batch_size
+			n_depth = 0
+		elif self.n_relative_depth_sample > 0:
+			n_normal = 0
+			n_depth = batch_size
+		else:
+			n_normal = 0
+			n_depth = 0
+			print(">>>>>>>>>    Error: No depth sample or normal sample!")
+			assert(False)
+
+		depth_indices = self.data_ptr_relative_depth.load_next_batch(n_depth)
+		normal_indices = self.data_ptr_normal.load_next_batch(n_normal)
+
+
+		return self.load_indices(depth_indices, normal_indices)
 
 	def reset(self):
 		self.current_pos = 1

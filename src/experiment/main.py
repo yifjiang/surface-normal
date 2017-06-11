@@ -11,16 +11,27 @@ def parseArgs():
     parser.add_argument('-m', default='hourglass', help='model file definition')
     parser.add_argument('-bs',default=4, type = int, help='batch size')
     parser.add_argument('-it', default=0, type = int, help='Iterations')
-    parser.add_argument('-lt', default=10, type = int, help = 'Loss file saving refresh interval (seconds)')
-    parser.add_argument('-mt', default=3000 , type = int, help = 'Model saving interval (iterations)')
-    parser.add_argument('-et', default=1000 , type = int, help = 'Model evaluation interval (iterations)')
+    parser.add_argument('-lt', default=1000, type = int, help = 'Loss file saving refresh interval (seconds)')
+    parser.add_argument('-mt', default=10000 , type = int, help = 'Model saving interval (iterations)')
+    parser.add_argument('-et', default=3000 , type = int, help = 'Model evaluation interval (iterations)')
     parser.add_argument('-lr', default=1e-3 , type = float, help = 'Learning rate')
+    parser.add_argument('-w_n',  default = 1, type = int, help = 'Weight for the normal loss')
     parser.add_argument('-t_depth_file', default='', help = 'Training file for relative depth')
     parser.add_argument('-v_depth_file', default='' , help = 'Validation file for relative depth')
+    parser.add_argument('-t_normal_file', default='', help = 'Training file for normal')
+    parser.add_argument('-v_normal_file', default='', help = 'Validation file for normal')
     parser.add_argument('-rundir', default='' , help = 'Running directory')
     parser.add_argument('-ep', default=10 , type = int , help = 'Epochs')
     parser.add_argument('-start_from', default='' , help = 'Start from previous model')
     parser.add_argument('-diw', default=False , type = bool , help = 'Is training on DIW dataset')
+    parser.add_argument('-snow', default=False , type = bool , help = 'Is training on snow dataset')
+    parser.add_argument('-nyu', default=False , type = bool , help = 'Is training on nyu full metric depth dataset')
+    parser.add_argument('-direct_normal', default=False, help = 'Is directly predicting normal')
+    parser.add_argument('-margin', default = 1, help = 'margin for the margin loss')
+    parser.add_argument('-var_thresh', default = 1, help = 'threshold for variance loss')
+    parser.add_argument('-n_max_depth', default = 800, help = 'maximum number of depth pair loaded per sample during training(validation is excluded)')
+    parser.add_argument('-n_max_normal', default = 50000, help = 'maximum number of normal point loaded per sample during training(validation is excluded)')
+    parser.add_argument('-n_scale', default = 1, help = 'number of scale we want to compare to')
     parser.add_argument('-optim', default='RMSprop', help = 'choose the optimizer')
     g_args = parser.parse_args()
     return g_args
@@ -70,17 +81,38 @@ def save_best_model(model, directory, config, iteration):
 
 
 ## main
+g_scales = [1,4,8]
+
 g_args = parseArgs()
 
-if g_args.diw:
+if g_args.direct_normal and g_args.snow:
+    exec(open('./DataLader_SNOW.py').read())
+    from validation_crit.validate_crit_direct_normal_SNOW import *
+elif g_args.direct_normal:
+    exec(open('./DataLoader_NYU_Full.py').read())
+    from validation_crit.validate_crit_direct_normal import *
+elif g_args.nyu:
+    exec(open('./DataLoader_NYU_Full.py').read())
+    from validation_crit.validate_crit_NULL import *
+elif g_args.snow and g_args.diw:
+    exec(open('./DataLoader_SNOW_DIW.py').read())
+    from validation_crit.validate_crit_SNOW_DIW import *
+elif g_args.diw:
     exec(open('./DataLoader_DIW.py').read())#TODO
     from validation_crit.validate_crit_DIW import *
+elif g_args.snow:
+    exec(open('./DataLoader_SNOW.py').read())
+    from validation_crit.validate_crit_SNOW import *
 else:
-    exec(open('./DataLoader.py').read())
+    if g_args.n_scale == 1:
+        exec(open('./DataLoader.py').read())
+    else:
+        exec(open('./DataLoader_multi_res.py').read())
     from validation_crit.validate_crit1 import *
 exec(open('load_data.py').read())
 train_loader = TrainDataLoader()
 valid_loader = ValidDataLoader()
+g_train_during_valid_loader = Train_During_Valid_DataLoader()
 
 if g_args.it == 0:
     g_args.it = int(g_args.ep * (train_loader.n_relative_depth_sample)/g_args.bs)
@@ -94,7 +126,7 @@ if g_args.rundir == '':
         jobid = 'debug'
     else:
         jobid = jobid.split('%.')[0]
-    g_args.rundir = os.path.join('/home/yifan/dump/depth_pytorch/results/',g_args.m, str(job_name))
+    g_args.rundir = os.path.join('/scratch/jiadeng_flux/yifan/depth_normal_pytorch/results/',g_args.m, str(job_name))
 # if os.path.exists(g_args.rundir):
 #     shutil.rmtree(g_args.rundir)
 if not os.path.exists(g_args.rundir):
@@ -106,8 +138,11 @@ config = {}
 # temporary solution
 if g_args.m == 'hourglass':
     from models.hourglass import *
+elif g_args.m == 'hourglass_softplus':
+    exec(open('models/hourglass_softplus.py').read())
+    # from models.hourglass_softplus import *
+
 if g_args.start_from != '':
-    # import cudnn
     print(os.path.join(g_args.rundir, g_args.start_from))
     g_model = torch.load(os.path.join(g_args.rundir , g_args.start_from))
     if g_model.period is None:
@@ -117,7 +152,7 @@ if g_args.start_from != '':
 else:
     g_model = Model()
     g_model.period = 1
-# g_model.training()?
+
 config['learningRate'] = g_args.lr
 
 if get_criterion is None: #Todo
@@ -146,6 +181,20 @@ train_WKDR = []
 valid_loss = []
 valid_WKDR = []
 lfile = open(g_args.rundir+'/training_loss_period'+str(g_model.period)+'.txt', 'w')
+__loss_normal_file = open(os.path.join(g_args.rundir, 'training_loss_normal_period'+str(g_model.period)+'.txt'), 'w')
+__loss_depth_file = open(os.path.join(g_args.rundir, 'training_loss_depth_period'+str(g_model.period)+'.txt'), 'w')
+__valid_angular_diff_file = open(os.path.join(g_args.rundir, 'validate_angular_diff_period'+str(g_model.period)+'.txt'), 'w')
+__valid_normal_loss_file = open(os.path.join(g_args.rundir, 'validate_normal_loss_period' + str(g_model.period)+'.txt') , 'w')
+__training_angular_diff_file = open(os.path.join(g_args.rundir, 'training_angular_diff_period')+ str(g_model.period)+'.txt', 'w')
+
+__training_rmse_file = open(os.path.join(g_args.rundir, 'training_rmse_period'+str(g_model.period)+'.txt'), 'w')
+__training_rmse_si_file = open(os.path.join(g_args.rundir, 'training_rmse_si_period'+str(g_model.period)+'.txt'), 'w')
+__training_lsi_file = open(os.path.join(g_args.rundir, 'training_lsi_period'+str(g_model.period)+'.txt'), 'w')
+__valid_rmse_file = open(os.path.join(g_args.rundir, 'valid_rmse_period'+str(g_model.period)+'.txt'), 'w')
+__valid_rmse_si_file = open(os.path.join(g_args.rundir, 'valid_rmse_si_period'+str(g_model.period)+'.txt'), 'w')
+__valid_lsi_file = open(os.path.join(g_args.rundir, 'valid_lsi_period'+str(g_model.period)+'.txt'), 'w')
+
+
 
 total_loss = 0.0
 for i in range(0,g_args.it):
@@ -156,6 +205,9 @@ for i in range(0,g_args.it):
     print(('loss = {}'.format(running_loss)))
     lfile.write('loss = {}\n'.format(running_loss))
     # print('time_used = {}'.format(end-start))
+    # 
+    __loss_depth_file.write(str(g_criterion.loss_relative_depth)+'\n')
+    __loss_normal_file.write(str(g_criterion.loss_normal)+'\n')
 
     if i % g_args.mt == 0 and i!=0:
         print('Saving model at iteration {}...'.format(i))
@@ -163,10 +215,22 @@ for i in range(0,g_args.it):
 
     if i % g_args.et == 0 and i != 0:
         print('Evaluatng at iteration {}'.format(i))
-        train_eval_loss, train_eval_WKDR = evaluate(train_loader, g_model, g_criterion, 100) #TODO
-        valid_eval_loss, valid_eval_WKDR = evaluate(valid_loader, g_model, g_criterion, 100)
+        train_eval_loss, train_eval_WKDR, _train_normal_loss, _train_angle_diff, _train_rmse, _train_rmse_si, _train_lsi = evaluate(g_train_during_valid_loader, g_model, g_criterion, 100) #TODO
+        valid_eval_loss, valid_eval_WKDR, _valid_normal_loss, _valid_angle_diff, _valid_rmse, _valid_rmse_si, _valid_lsi = evaluate(valid_loader, g_model, g_criterion, 100)
         print("train_eval_loss:",train_eval_loss, "; train_eval_WKDR:" ,train_eval_WKDR)
         print("valid_eval_loss:", valid_eval_loss, "; valid_eval_WKDR:", valid_eval_WKDR)
+
+        __valid_angular_diff_file.write(str(_valid_angle_diff)+'\n')
+        __valid_normal_loss_file.write(str(_valid_normal_loss)+'\n')
+        __valid_rmse_file.write(str(_valid_rmse)+'\n')
+        __valid_rmse_si_file.write(str(_valid_rmse_si)+'\n')
+        __valid_lsi_file.write(str(_valid_lsi)+'\n')
+
+        __training_angular_diff_file.write(str(_train_angle_diff)+'\n')
+        __training_rmse_file.write(str(_train_rmse)+'\n')
+        __training_rmse_si_file.write(str(_train_rmse_si)+'\n')
+        __training_lsi_file.write(str(_train_lsi)+'\n')
+
 
         train_loss.append(running_loss)
         valid_loss.append(valid_eval_loss)
@@ -175,6 +239,13 @@ for i in range(0,g_args.it):
 
         save_loss_accuracy(train_loss, train_WKDR, valid_loss, valid_WKDR)
 
+        print('executing: mkdir '+g_args.rundir+str(i))
+        os.mkdir(g_args.rundir+str(i))
+        print('executing: cp '+os.path.join(g_args.rundir,'*.txt')+" "+g_args.rundir+str(i))
+        shutil.copy(os.path.join(g_args.rundir,'*.txt'), g_args.rundir+str(i))
+
         if best_valist_set_error_rate > valid_eval_WKDR:
             best_valist_set_error_rate = valid_eval_WKDR
             save_best_model(g_model, g_args.rundir, config, i)
+
+save_model(g_model,g_args.rundir,g_args.it,config)

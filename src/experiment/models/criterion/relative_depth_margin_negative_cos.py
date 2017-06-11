@@ -24,17 +24,17 @@ class relative_depth_negative_cos(nn.Module):
 		n_depth = target[0]['n_sample']
 		n_normal = target[1]['n_sample']
 
-		loss_normal = 0
-		loss_relative_depth = 0
+		self.loss_normal = 0
+		self.loss_relative_depth = 0
 		output = 0
 
 		if n_depth > 0:
-			loss_relative_depth = self.depth_crit(input[0:n_depth], target[0])
-			output += loss_relative_depth
+			self.loss_relative_depth = self.depth_crit(input[0:n_depth], target[0])
+			output += self.loss_relative_depth
 		if n_normal > 0:
 			normal = self.depth_to_normal(input[n_depth:])
-			loss_normal = self.w_normal*self.normal_crit(normal, target[1])
-			output += loss_normal
+			self.loss_normal = self.w_normal*self.normal_crit(normal, target[1])
+			output += self.loss_normal
 
 		return output
 

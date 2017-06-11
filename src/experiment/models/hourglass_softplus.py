@@ -20,7 +20,8 @@ def get_model():
 
 from .criterion.relative_depth_margin_negative_cos import relative_depth_negative_cos
 def get_criterion():
-	return relative_depth_crit()
+	from common import *
+	return relative_depth_negative_cos(g_args.w_n, g_args.margin, camera)
 
 def f_depth_from_model_output():
 	print(">>>>>>>>>>>>>>>>>>>>>>>>>    depth = model_output")

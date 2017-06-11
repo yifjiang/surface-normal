@@ -25,9 +25,9 @@ def angle_diff(input, target):
 	if torch.sum(mask_gt1)[0].data > 0:
 		print(">>>>>>>> Greater than 1 cos!")
 	if torch.sum(mask_lt_1)[0].data > 0:
-        print(">>>>>>>> Less than -1 cos!")
+		print(">>>>>>>> Less than -1 cos!")
 
-    return torch.sum(acos)
+	return torch.sum(acos)
 
 
 def _classify(z_A,z_B,ground_truth,thresh):
@@ -60,7 +60,7 @@ def _count_correct(output, target, record):
 			if _classify(z_A, z_B, ground_truth, record['thresh'][tau_idx]):
 				if ground_truth == 0:
 					record['eq_correct_count'][tau_idx] += 1
-				elif ground_truth == 1 or ground_truth == -1 #this may be unnecessary
+				elif ground_truth == 1 or ground_truth == -1: #this may be unnecessary
 					record['not_eq_correct_count'][tau_idx] += 1
 
 		if ground_truth == 0:

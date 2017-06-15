@@ -27,11 +27,11 @@ def parseArgs():
     parser.add_argument('-snow', default=False , type = bool , help = 'Is training on snow dataset')
     parser.add_argument('-nyu', default=False , type = bool , help = 'Is training on nyu full metric depth dataset')
     parser.add_argument('-direct_normal', default=False, help = 'Is directly predicting normal')
-    parser.add_argument('-margin', default = 1, help = 'margin for the margin loss')
-    parser.add_argument('-var_thresh', default = 1, help = 'threshold for variance loss')
-    parser.add_argument('-n_max_depth', default = 800, help = 'maximum number of depth pair loaded per sample during training(validation is excluded)')
-    parser.add_argument('-n_max_normal', default = 50000, help = 'maximum number of normal point loaded per sample during training(validation is excluded)')
-    parser.add_argument('-n_scale', default = 1, help = 'number of scale we want to compare to')
+    parser.add_argument('-margin', default = 1, type = float, help = 'margin for the margin loss')
+    parser.add_argument('-var_thresh', default = 1, type = float, help = 'threshold for variance loss')
+    parser.add_argument('-n_max_depth', default = 800, type = int, help = 'maximum number of depth pair loaded per sample during training(validation is excluded)')
+    parser.add_argument('-n_max_normal', default = 50000, type = int, help = 'maximum number of normal point loaded per sample during training(validation is excluded)')
+    parser.add_argument('-n_scale', default = 1, type = int, help = 'number of scale we want to compare to')
     parser.add_argument('-optim', default='RMSprop', help = 'choose the optimizer')
     g_args = parser.parse_args()
     return g_args
@@ -108,7 +108,7 @@ else:
         exec(open('./DataLoader.py').read())
     else:
         exec(open('./DataLoader_multi_res.py').read())
-    from validation_crit.validate_crit1 import *
+    exec(open('./validation_crit/validate_crit1.py').read())
 exec(open('load_data.py').read())
 train_loader = TrainDataLoader()
 valid_loader = ValidDataLoader()
@@ -126,7 +126,7 @@ if g_args.rundir == '':
         jobid = 'debug'
     else:
         jobid = jobid.split('%.')[0]
-    g_args.rundir = os.path.join('/scratch/jiadeng_flux/yifan/depth_normal_pytorch/results/',g_args.m, str(job_name))
+    g_args.rundir = os.path.join('../../results/',g_args.m, str(job_name))
 # if os.path.exists(g_args.rundir):
 #     shutil.rmtree(g_args.rundir)
 if not os.path.exists(g_args.rundir):
@@ -136,11 +136,14 @@ torch.save(g_args ,g_args.rundir+'/g_args.pt')
 # Model
 config = {}
 # temporary solution
+# print(g_args.m)
 if g_args.m == 'hourglass':
     from models.hourglass import *
 elif g_args.m == 'hourglass_softplus':
     exec(open('models/hourglass_softplus.py').read())
     # from models.hourglass_softplus import *
+else:
+    exec(open('models/'+g_args.m+'.py').read())
 
 if g_args.start_from != '':
     print(os.path.join(g_args.rundir, g_args.start_from))
@@ -164,7 +167,7 @@ if get_depth_from_model_output is None:
     print('Error: get_depth_from_model_output is undefined!!!!!!!')
     sys.exit(1)
 
-g_criterion = get_criterion()
+g_criterion = get_criterion().cuda()
 g_model = g_model.cuda()
 # g_params = g_model.parameters() # get parameters
 if g_args.optim == 'RMSprop':

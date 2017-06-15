@@ -18,8 +18,14 @@ class normal_negative_cos_crit(nn.Module):
 			batch_input = input[batch_idx]
 			normal_arr =batch_input.index_select(2,x_arr.long()).gather(1, y_arr.view(1,-1).long().repeat(3,1).view(3,1,-1)).squeeze()
 			ground_truth_arr = target[batch_idx]['normal']
+			print(normal_arr)
+			print(ground_truth_arr)
+			# assert(normal_arr.size() == ground_truth_arr.size())
+			print(normal_arr*ground_truth_arr)
 			output-=torch.sum(normal_arr*ground_truth_arr)
 
+		print(n_points)
+		print((output/n_points).data[0])
 		return output/n_points
 
 if __name__ == '__main__':

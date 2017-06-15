@@ -1,2 +1,4 @@
 1.check the double datatype
 2.check the Variable/Tensor conversioni in validate_crit1.py
+3.check the 'empty line' circumstance
+4.check ['n_point']

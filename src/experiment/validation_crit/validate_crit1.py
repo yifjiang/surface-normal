@@ -136,7 +136,7 @@ for i in range(0,_eval_record['n_thresh']):
 	_eval_record['thresh'][i] = float(i)*WKDR_step+0.1
 
 print('>>>>>> Validation: margin = {}, WKDR Step = {}'.format(g_args.margin, WKDR_step))
-print(_eval_record['thresh'])
+# print(_eval_record['thresh'])
 
 
 def reset_record(record):

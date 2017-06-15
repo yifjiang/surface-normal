@@ -26,9 +26,12 @@ class DataLoader(object):
 		super(DataLoader, self).__init__()
 		print(">>>>>>>>>>>>>>>>> Using DataLoader")
 
+		self.n_max_depth = n_max_depth
+		self.n_max_normal = n_max_normal
+
 		print("n_max_depth =", n_max_depth, "n_max_normal =", n_max_normal)
 
-		self.parse_depth_and_normal(relative_depth_filename)
+		self.parse_depth_and_normal(relative_depth_filename,normal_filename)
 		self.data_ptr_relative_depth = DataPointer(self.n_relative_depth_sample)
 		self.data_ptr_normal = DataPointer(self.n_normal_sample)
 		print("DataLoader init: \n \t{} relative depth samples \n \t{} normal samples".format(self.n_relative_depth_sample, self.n_normal_sample))
@@ -41,7 +44,7 @@ class DataLoader(object):
 		sample['img_filename'] = splits[0]
 		sample['n_point'] = int(splits[2])
 		if n_max_depth is not None:
-			sample['n_point'] = min(n_max_depth, sample['n_point'])
+			sample['n_point'] = min(int(n_max_depth), int(sample['n_point']))
 		return sample
 
 	def parse_normal_line(self, line, n_max_normal):
@@ -51,10 +54,12 @@ class DataLoader(object):
 		sample['n_point'] = int(splits[1])
 
 		if n_max_normal is not None:
-			sample['n_point'] = min(n_max_normal, sample['n_point'])
+			# print(int(n_max_normal))
+			# print(int(sample['n_point']))
+			sample['n_point'] = min(int(n_max_normal), int(sample['n_point']))
 
 		if len(splits) > 2:
-			sample['focal_length'] = int(splits[2])
+			sample['focal_length'] = float(splits[2])
 		return sample
 
 	def parse_csv(self, filename, parsing_func, n_max_point):
@@ -104,7 +109,7 @@ class DataLoader(object):
 			self.relative_depth_handle = {}
 
 		if normal_filename is not None:
-			self.normal_handle = parse_csv(normal_filename, parse_normal_line, self.n_max_normal)
+			self.normal_handle = self.parse_csv(normal_filename, self.parse_normal_line, self.n_max_normal)
 		else:
 			self.normal_handle = {}
 
@@ -140,17 +145,17 @@ class DataLoader(object):
 
 		batch_size = n_depth + n_normal
 		color = torch.Tensor(batch_size, 3, g_input_height, g_input_width) # now it's a Tensor, remember to make it a Variable
-		if b_load_gtz and n_depth > 0:
-			_batch_target_relative_depth_gpu['gt_depth'] = torch.Tensor(batch_size, g_large_input_height, g_large_input_width)# now it's a Tensor, remember to make it a Variable
-		if b_load_gtz and n_normal > 0:
-			_batch_target_normal_gpu['gt_depth'] = torch.Tensor(batch_size, g_large_input_height, g_large_input_width)# now it's a Tensor, remember to make it a Variable
-
 
 		_batch_target_relative_depth_gpu = {}
 		_batch_target_relative_depth_gpu['n_sample'] = n_depth
 
 		_batch_target_normal_gpu = {}
 		_batch_target_normal_gpu['n_sample'] = n_normal
+
+		if b_load_gtz and n_depth > 0:
+			_batch_target_relative_depth_gpu['gt_depth'] = torch.Tensor(batch_size, g_large_input_height, g_large_input_width)# now it's a Tensor, remember to make it a Variable
+		if b_load_gtz and n_normal > 0:
+			_batch_target_normal_gpu['gt_depth'] = torch.Tensor(batch_size, g_large_input_height, g_large_input_width)# now it's a Tensor, remember to make it a Variable
 
 
 
@@ -203,7 +208,8 @@ class DataLoader(object):
 			_batch_target_relative_depth_gpu[i]['ordianl_relation']= torch.autograd.Variable(torch.from_numpy(_this_sample_hdf5[4])).cuda()
 			_batch_target_relative_depth_gpu[i]['n_point'] = n_point
 
-		_batch_target_relative_depth_gpu['gt_depth'] = torch.autograd.Variable(_batch_target_relative_depth_gpu['gt_depth'].cuda())
+		if b_load_gtz:
+			_batch_target_relative_depth_gpu['gt_depth'] = torch.autograd.Variable(_batch_target_relative_depth_gpu['gt_depth'].cuda())
 
 		_batch_target_normal_gpu['focal_length'] = torch.Tensor(n_normal,1)#remember to make this a Variable!
 
@@ -228,26 +234,32 @@ class DataLoader(object):
 			normal_name = img_name.replace('.png','_normal.bin')
 			file = open(normal_name,'rb')
 			normal = array.array('d')
+			# print(file)
 			normal.fromfile(file,5*n_point)
+			# print(normal)
 			file.close()
-			normal = torch.Tensor(normal).view(n_point,5)
+			normal = torch.Tensor(normal.tolist()).view(5,n_point)#check this!
+			# print(normal)
 
+			# print(i-n_depth)
+			_batch_target_normal_gpu[i - n_depth] = {}
 			_batch_target_normal_gpu[i - n_depth]['x'] = torch.autograd.Variable(normal[0].int().cuda())
 			_batch_target_normal_gpu[i - n_depth]['y'] = torch.autograd.Variable(normal[1].int().cuda())
 			_batch_target_normal_gpu[i - n_depth]['normal'] = torch.autograd.Variable(normal[2:5].cuda())
 			_batch_target_normal_gpu[i - n_depth]['n_point'] = n_point
 
-		_batch_target_normal_gpu['gt_depth'] = torch.autograd.Variable(_batch_target_normal_gpu['gt_depth'].cuda())
+		if b_load_gtz:
+			_batch_target_normal_gpu['gt_depth'] = torch.autograd.Variable(_batch_target_normal_gpu['gt_depth'].cuda())
 		_batch_target_normal_gpu['focal_length'] = torch.autograd.Variable(_batch_target_normal_gpu['focal_length'].cuda())
 
 
 
-		return torch.autograd.Variable(color.cuda()), _batch_target_relative_depth_gpu
+		return torch.autograd.Variable(color.cuda()), [_batch_target_relative_depth_gpu, _batch_target_normal_gpu]
 
 	def load_next_batch(self, batch_size):
 
 		if self.n_normal_sample>0 and self.n_relative_depth_sample>0:
-			n_depth, n_normal = mixed_sample_strategy1(batch_size)
+			n_depth, n_normal = self.mixed_sample_strategy1(batch_size)
 		elif self.n_normal_sample > 0:
 			n_normal = batch_size
 			n_depth = 0

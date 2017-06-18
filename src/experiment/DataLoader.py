@@ -179,10 +179,10 @@ class DataLoader(object):
 			# image = Variable(image, require_grad=True)
 			color[i,:,:,:].copy_(image)
 
-			if b_load_gtz:
+			if b_load_gtz and n_depth:
 				gt_z_filename = img_name.replace('.png','_gt_depth.h5')
 				if os.path.isfile(gt_z_filename):
-					gtz_h5_handle = h5py.File(gtz_h5_handle, 'r')
+					gtz_h5_handle = h5py.File(gt_z_filename, 'r')
 					_batch_target_relative_depth_gpu['gt_depth'][i,:,:].copy_(torch.Tensor(gtz_h5_handle['/gt_depth']))
 					gtz_h5_handle.close()
 				else:
@@ -208,7 +208,7 @@ class DataLoader(object):
 			_batch_target_relative_depth_gpu[i]['ordianl_relation']= torch.autograd.Variable(torch.from_numpy(_this_sample_hdf5[4])).cuda()
 			_batch_target_relative_depth_gpu[i]['n_point'] = n_point
 
-		if b_load_gtz:
+		if b_load_gtz and n_depth:
 			_batch_target_relative_depth_gpu['gt_depth'] = torch.autograd.Variable(_batch_target_relative_depth_gpu['gt_depth'].cuda())
 
 		_batch_target_normal_gpu['focal_length'] = torch.Tensor(n_normal,1)#remember to make this a Variable!
@@ -222,10 +222,10 @@ class DataLoader(object):
 
 			color[i,:,:,:].copy_(loader(Image.open(img_name)).float())
 
-			if b_load_gtz:
+			if b_load_gtz and n_normal:
 				gt_z_filename = img_name.replace('.png','_gt_depth.h5')
 				if os.path.isfile(gt_z_filename):
-					gtz_h5_handle = h5py.File(gtz_h5_handle, 'r')
+					gtz_h5_handle = h5py.File(gt_z_filename, 'r')
 					_batch_target_normal_gpu['gt_depth'][i - n_depth,:,:].copy_(torch.Tensor(gtz_h5_handle['/gt_depth']))
 					gtz_h5_handle.close()
 				else:
@@ -238,7 +238,8 @@ class DataLoader(object):
 			normal.fromfile(file,5*n_point)
 			# print(normal)
 			file.close()
-			normal = torch.Tensor(normal.tolist()).view(5,n_point)#check this!
+			normal = torch.Tensor(normal.tolist()).view(n_point, 5).transpose(0,1)#check this!
+			# print(normal)
 			# print(normal)
 
 			# print(i-n_depth)
@@ -248,7 +249,7 @@ class DataLoader(object):
 			_batch_target_normal_gpu[i - n_depth]['normal'] = torch.autograd.Variable(normal[2:5].cuda())
 			_batch_target_normal_gpu[i - n_depth]['n_point'] = n_point
 
-		if b_load_gtz:
+		if b_load_gtz  and n_normal:
 			_batch_target_normal_gpu['gt_depth'] = torch.autograd.Variable(_batch_target_normal_gpu['gt_depth'].cuda())
 		_batch_target_normal_gpu['focal_length'] = torch.autograd.Variable(_batch_target_normal_gpu['focal_length'].cuda())
 

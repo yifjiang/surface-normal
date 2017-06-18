@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from torch.autograd import Variable
-from models import hourglass
+from . import hourglass
 
 class Model(nn.Module):
 	def __init__(self):
@@ -18,9 +18,8 @@ class Model(nn.Module):
 def get_model():
 	return Model().cuda()
 
-from models.criterion.relative_depth_margin_log_negative_cos import relative_depth_margin_log_negative_cos
-def get_criterion():
-	from common.NYU_params import camera
+from .criterion.relative_depth_margin_log_negative_cos import relative_depth_margin_log_negative_cos
+def get_criterion(camera, g_args):
 	return relative_depth_margin_log_negative_cos(g_args.w_n, g_args.margin, camera).cuda()
 
 def f_depth_from_model_output():

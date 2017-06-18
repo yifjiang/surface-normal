@@ -6,6 +6,8 @@ import sys
 import argparse
 import time
 
+from common.NYU_params import camera
+
 def parseArgs():
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', default='hourglass', help='model file definition')
@@ -140,10 +142,12 @@ config = {}
 if g_args.m == 'hourglass':
     from models.hourglass import *
 elif g_args.m == 'hourglass_softplus':
-    exec(open('models/hourglass_softplus.py').read())
-    # from models.hourglass_softplus import *
+    # exec(open('models/hourglass_softplus.py').read())
+    from models.hourglass_softplus import *
+elif g_args.m == 'hourglass_softplus_margin_log':
+    from models.hourglass_softplus_margin_log import *
 else:
-    exec(open('models/'+g_args.m+'.py').read())
+    exec(open('models/'+g_args.m+'.py').read())#TODO
 
 if g_args.start_from != '':
     print(os.path.join(g_args.rundir, g_args.start_from))
@@ -167,7 +171,7 @@ if get_depth_from_model_output is None:
     print('Error: get_depth_from_model_output is undefined!!!!!!!')
     sys.exit(1)
 
-g_criterion = get_criterion().cuda()
+g_criterion = get_criterion(camera,g_args).cuda()
 g_model = g_model.cuda()
 # g_params = g_model.parameters() # get parameters
 if g_args.optim == 'RMSprop':
@@ -212,14 +216,14 @@ for i in range(0,g_args.it):
     __loss_depth_file.write(str(g_criterion.loss_relative_depth)+'\n')
     __loss_normal_file.write(str(g_criterion.loss_normal)+'\n')
 
-    if i % g_args.mt == 0 and i!=0:
+    if i % g_args.mt == 0:
         print('Saving model at iteration {}...'.format(i))
         save_model(g_model, g_args.rundir, i, config)
 
-    if i % g_args.et == 0 and i != 0:
+    if i % g_args.et == 0:
         print('Evaluatng at iteration {}'.format(i))
-        train_eval_loss, train_eval_WKDR, _train_normal_loss, _train_angle_diff, _train_rmse, _train_rmse_si, _train_lsi = evaluate(g_train_during_valid_loader, g_model, g_criterion, 100) #TODO
-        valid_eval_loss, valid_eval_WKDR, _valid_normal_loss, _valid_angle_diff, _valid_rmse, _valid_rmse_si, _valid_lsi = evaluate(valid_loader, g_model, g_criterion, 100)
+        train_eval_loss, train_eval_WKDR, _train_normal_loss, _train_angle_diff, _train_rmse, _train_rmse_si, _train_lsi = evaluate(g_train_during_valid_loader, g_model, g_criterion, 10) #TODO
+        valid_eval_loss, valid_eval_WKDR, _valid_normal_loss, _valid_angle_diff, _valid_rmse, _valid_rmse_si, _valid_lsi = evaluate(valid_loader, g_model, g_criterion, 10)
         print("train_eval_loss:",train_eval_loss, "; train_eval_WKDR:" ,train_eval_WKDR)
         print("valid_eval_loss:", valid_eval_loss, "; valid_eval_WKDR:", valid_eval_WKDR)
 
@@ -234,6 +238,18 @@ for i in range(0,g_args.it):
         __training_rmse_si_file.write(str(_train_rmse_si)+'\n')
         __training_lsi_file.write(str(_train_lsi)+'\n')
 
+        lfile.flush()
+        __loss_depth_file.flush()
+        __loss_normal_file.flush()
+        __training_lsi_file.flush()
+        __valid_lsi_file.flush()
+        __valid_rmse_file.flush()
+        __training_rmse_file.flush()
+        __valid_rmse_si_file.flush()
+        __training_rmse_file.flush()
+        __training_angular_diff_file.flush()
+        __valid_angular_diff_file.flush()
+
 
         train_loss.append(running_loss)
         valid_loss.append(valid_eval_loss)
@@ -243,12 +259,26 @@ for i in range(0,g_args.it):
         save_loss_accuracy(train_loss, train_WKDR, valid_loss, valid_WKDR)
 
         print('executing: mkdir '+g_args.rundir+str(i))
-        os.mkdir(g_args.rundir+str(i))
-        print('executing: cp '+os.path.join(g_args.rundir,'*.txt')+" "+g_args.rundir+str(i))
-        shutil.copy(os.path.join(g_args.rundir,'*.txt'), g_args.rundir+str(i))
+
+        if not os.path.isdir(g_args.rundir+str(i)):
+            os.mkdir(g_args.rundir+str(i))
+        e = 'cp '+os.path.join(g_args.rundir,'*.txt')+" "+g_args.rundir+str(i)
+        print('executing: '+e)
+        os.system(e)
 
         if best_valist_set_error_rate > valid_eval_WKDR:
             best_valist_set_error_rate = valid_eval_WKDR
             save_best_model(g_model, g_args.rundir, config, i)
 
 save_model(g_model,g_args.rundir,g_args.it,config)
+lfile.close()
+__loss_depth_file.close()
+__loss_normal_file.close()
+__training_lsi_file.close()
+__valid_lsi_file.close()
+__valid_rmse_file.close()
+__training_rmse_file.close()
+__valid_rmse_si_file.close()
+__training_rmse_file.close()
+__training_angular_diff_file.close()
+__valid_angular_diff_file.close()

@@ -7,13 +7,13 @@ from common import *
 from math import sqrt
 
 def angle_diff(input, target):
-	x_arr = target['x']
-	y_arr = target['y']
+	x_arr = target['x'].data
+	y_arr = target['y'].data
 
 	normal_arr = input.index_select(2,x_arr.long()).gather(1, y_arr.view(1,-1).long().repeat(3,1).view(3,1,-1)).squeeze()
 	ground_truth_arr = target['normal']
 
-	cos = torch.sum(normal_arr*ground_truth_arr, dim=0)
+	cos = torch.sum(normal_arr*ground_truth_arr.data, dim=0)
 
 	mask_gt1 = (cos>1).float()
 	cos = cos*(1-mask_gt1)+mask_gt1
@@ -22,9 +22,9 @@ def angle_diff(input, target):
 
 	acos = torch.acos(cos)
 
-	if torch.sum(mask_gt1)[0].data > 0:
+	if torch.sum(mask_gt1) > 0:
 		print(">>>>>>>> Greater than 1 cos!")
-	if torch.sum(mask_lt_1)[0].data > 0:
+	if torch.sum(mask_lt_1) > 0:
 		print(">>>>>>>> Less than -1 cos!")
 
 	return torch.sum(acos)
@@ -49,10 +49,10 @@ def _count_correct(output, target, record):
 		x_B = target['x_B'][point_idx]
 		y_B = target['y_B'][point_idx]
 
-		z_A = output[0,0, y_A.data.int()[0], x_A.data.int()[0]].data[0] #zero-indexed
-		z_B = output[0,0, y_B.data.int()[0], x_B.data.int()[0]].data[0]
+		z_A = output[0,0, y_A.data.int()[0], x_A.data.int()[0]] #zero-indexed
+		z_B = output[0,0, y_B.data.int()[0], x_B.data.int()[0]]
 
-		assert(x_A != x_B or y_A != y_B)
+		assert(torch.sum(x_A != x_B).data[0] or torch.sum(y_A != y_B).data[0])
 
 		ground_truth = target['ordianl_relation'][point_idx].data[0]
 
@@ -76,7 +76,7 @@ def normalize_with_mean_std(input, mean, std):
 	normed_input *= std
 	normed_input += mean
 
-	if torch.sum(normed_input<=0).data[0]>0:
+	if torch.sum(normed_input<=0)>0:
 		normed_input[normed_input<=0] = torch.min(normed_input[normed_input>0])+0.00001
 
 	return normed_input
@@ -98,20 +98,25 @@ def metric_error(gt_z, z):
 		transforms.ToTensor()
 		])
 	z_min = torch.min(z)
-	z_range = torch.max(z) - z_min
+	z_range = (torch.max(z) - z_min)
+	# print(z.size())
 	resize_z = (z - z_min)/z_range
-	resize_z = scale(resize_z)
+	resize_z = scale(resize_z.cpu())
 	resize_z = (resize_z*z_range)+z_min
+	resize_z = resize_z.squeeze().cuda()
 
 	std_of_NYU_training = 0.6148231626
 	mean_of_NYU_training = 2.8424594402
 
 	_crop = 16
-	gt_z = gt_z[_crop:(480 - _crop), _crop:(640 - _crop)]
+	# print(gt_z.size())
+	gt_z = gt_z[_crop:(480 - _crop), _crop:(640 - _crop)].data
+	# print(resize_z.size())
 	resize_z = resize_z[_crop:(480 - _crop), _crop:(640 - _crop)]
 
 	normed_NYU_z = normalize_with_mean_std(resize_z, mean_of_NYU_training, std_of_NYU_training)
 
+	# print(gt_z,normed_NYU_z)
 	fmse = torch.mean(torch.pow(gt_z - normed_NYU_z, 2))
 	flsi = torch.mean(torch.pow(torch.log(normed_NYU_z) - torch.log(gt_z) + torch.mean(torch.log(normed_NYU_z) - torch.log(gt_z)), 2))
 
@@ -168,24 +173,25 @@ def evaluate(data_loader, model, criterion, max_n_sample):
 	print("Number of normal samples we are going to examine: {}".format(n_normal_iters))
 
 	for i in range(0,n_depth_iters):
+		print(i)
 		batch_input, batch_target = data_loader.load_indices(torch.Tensor([i]), None, True) 
 
 		relative_depth_target = batch_target[0][0]
 
 		# print(i)
 		batch_output = model.forward(batch_input)
-		batch_loss = criterion.forward(batch_output, batch_target) 
+		batch_loss = criterion.forward(batch_output, batch_target).data
 
 		# output_depth = get_depth_from_model_output(batch_output) #get_depth_from_model_output is from main.py
-		output_depth = batch_output #temporary solution
+		output_depth = batch_output.data #temporary solution
 
 		_count_correct(output_depth, relative_depth_target, _eval_record)
 
-		total_depth_validation_loss += (batch_loss * relative_depth_target['n_point']).data[0]
+		total_depth_validation_loss += (batch_loss * relative_depth_target['n_point'])[0]
 
 		n_total_depth_point_pair += relative_depth_target['n_point']
 
-		fmse[i], flsi[i], fmse_si[i] = metric_error(batch_target[0].gt_depth[0], output_depth[0,0].double())
+		fmse[i], flsi[i], fmse_si[i] = metric_error(batch_target[0]['gt_depth'][0], output_depth[0])
 
 		gc.collect()
 	
@@ -209,6 +215,7 @@ def evaluate(data_loader, model, criterion, max_n_sample):
 		).cuda()
 
 	for iter in range(0,n_normal_iters):
+		print(iter)
 		batch_input, batch_target = data_loader.load_indices(None, torch.Tensor([iter]), True)
 
 		if g_args.n_scale == 1:
@@ -218,10 +225,10 @@ def evaluate(data_loader, model, criterion, max_n_sample):
 
 		batch_output = model.forward(batch_input)
 
-		batch_loss = criterion.forward(batch_output, batch_target)
-		normal = _depth_to_normal(batch_output)
+		batch_loss = criterion.forward(batch_output, batch_target).data
+		normal = _depth_to_normal(batch_output).data
 
-		sum_angle_diff = angle_diff(normal[0], batch_target)
+		sum_angle_diff = angle_diff(normal[0], normal_target)
 		total_angle_difference += sum_angle_diff
 
 		total_normal_validation_loss += batch_loss*normal_target['n_point']
@@ -229,7 +236,7 @@ def evaluate(data_loader, model, criterion, max_n_sample):
 		n_total_normal_point += normal_target['n_point']
 
 		if n_depth_iters == 0:
-			fmse[iter], flsi[iter], fmse_si[iter] = metric_error(batch_target[1].gt_depth[0], batch_output[0,0].double())
+			fmse[iter], flsi[iter], fmse_si[iter] = metric_error(batch_target[1].gt_depth[0], batch_output[0])
 
 	print("Evaluate() Switch Off!!!")
 

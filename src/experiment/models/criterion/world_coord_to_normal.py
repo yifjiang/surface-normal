@@ -23,9 +23,16 @@ class spatial_normalization(nn.Module):
 		# input is N x 3 x H x W
 		square_sum = input[:,0,:,:]*input[:,0,:,:]+input[:,1,:,:]*input[:,1,:,:]+input[:,2,:,:]*input[:,2,:,:]
 		square_sum = torch.sqrt(square_sum)
-		square_sum = square_sum + (square_sum==0).float()*0.0000000001#might still cause some problem!
-		output = input
-		output = output/square_sum.repeat(1,3,1,1)
+		# print(square_sum)
+		# square_sum = square_sum.repeat(1,3,1,1)
+		# print(torch.sum(square_sum==0))
+		# square_sum = square_sum + (square_sum==0).float()*0.0000000001#might still cause some problem!
+		output = Variable(torch.Tensor(input.size())).cuda()
+		output[:,0] =input[:,0]/square_sum
+		output[:,1] =input[:,1]/square_sum
+		output[:,2] =input[:,2]/square_sum
+		square_sum = output[:,0,:,:]*output[:,0,:,:]+output[:,1,:,:]*output[:,1,:,:]+output[:,2,:,:]*output[:,2,:,:]
+		# print(square_sum)
 		return output
 		
 
@@ -50,11 +57,13 @@ class world_coord_to_normal(nn.Module):
 		v_up = self.v_up(input)
 		v_left = self.v_left(input)
 		v_norm = torch.cross(v_up,v_left, dim = 1)
-		return self.normalize(v_norm)
+		ret = self.normalize(v_norm)
+		# print(ret)
+		return ret
 
 if __name__ == '__main__':
 	# test
-	input = torch.zeros(1,3,5,5)
+	input = torch.rand(1,3,5,5)
 	input[0,0,1,0] = -1
 	input[0,0,1,2] = 2
 	input[0,1,0,1] = -1

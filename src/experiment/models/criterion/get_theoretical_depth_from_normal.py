@@ -168,3 +168,6 @@ class Mask(nn.Module):
 		mask_concat = self.concat([mask_o_up, mask_o_down, mask_o_left, mask_o_right])
 
 		return mask_concat
+
+def get_shift_mask():
+	return Mask()

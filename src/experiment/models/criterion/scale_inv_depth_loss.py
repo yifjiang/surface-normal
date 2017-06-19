@@ -4,7 +4,7 @@ from torch.autograd import Variable
 
 class scale_inv_depth_loss(nn.Module):
 	"""docstring for scale_inv_depth_loss"""
-	def __init__(self, arg):
+	def __init__(self):
 		super(scale_inv_depth_loss, self).__init__()
 	
 	def forward(self, input, target):

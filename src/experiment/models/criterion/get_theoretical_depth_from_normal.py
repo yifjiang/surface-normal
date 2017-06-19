@@ -85,7 +85,7 @@ class elementwise_concat(nn.Module):
 	def forward(self, input):
 		output = Variable(torch.zeros(input[0].size()[0], len(input) * input[0].size(1),input[0].size()[2],input[0].size()[3])).cuda()
 		for i in range(0,len(input)):
-			output[:,input[0].size()[1]*i:input[0].size(1),:,:] = input[i]
+			output[:,(input[0].size()[1]*i):(input[0].size(1)*(i+1)),:,:] = input[i]
 
 		return output
 

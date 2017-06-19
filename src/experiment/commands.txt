@@ -1,3 +1,5 @@
 python main.py -lr 0.001 -bs 4 -margin 0.01980262729618 -n_max_depth 800 -n_max_normal 5000 -m hourglass_softplus_margin_log -it 100000 -w_n 1 -t_depth_file train_NYU_subset_NC_depth_800.csv -v_depth_file val_NYU_subset_NC_depth_800.csv -t_normal_file jiang_train_NYU_subset_NC_normal_75684_all.csv -v_normal_file val_NYU_subset_NC_normal_59640.csv
 
 python test_on_one_image.py -prev_model_file ../../results/wn1_n5000_d800_RMSProp/Best_model_period1.pt -input_image ../../data/795_NYU_MITpaper_train_imgs_NO_CROP/1.png -output_image ../../temp/1_wn1_R.png
+
+python test_on_one_image.py -prev_model_file ../../results/wn1_n5000_d800_RMSProp/Best_model_period1.pt -input_image ~/relative-depth-using-pytorch/data/654_NYU_MITpaper_test_imgs_orig_size/1.png -output_image ../../temp/650_1_wn1_R.png

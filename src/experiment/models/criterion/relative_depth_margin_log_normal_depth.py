@@ -49,7 +49,37 @@ class relative_depth_margin_log_normal_depth(nn.Module):
 		self.normal_to_depth = get_theoretical_depth(camera).cuda()
 		self.shift_mask = get_shift_mask().cuda()
 
-		self.w_normal = Variable(torch.Tensor([w_normal])) #TODO:tensor or Variable?
+		self.w_normal = Variable(torch.Tensor([w_normal])).cuda() #TODO:tensor or Variable?
 
 	def forward(self, input, target):
-		
+		n_depth = target[0]['n_sample']
+		n_normal = target[1]['n_sample']
+
+		output = 0
+		__loss_relative_depth = 0
+		__loss_normal = 0
+
+		if n_depth > 0:
+			__loss_relative_depth = self.depth_crit(torch.log(input[0:n_depth]), target[0])
+			output = output + __loss_relative_depth
+		if n_normal > 0:
+			gt_normal_map = Variable(torch.zeros(n_normal, 3, input.size(2), input.size(3))).cuda()
+			_gt_normal_mask = Variable(torch.zeros(n_normal, 3, input.size(2), input.size(3))).cuda()
+			for batch_idx in range(0, n_normal):
+				x_arr = target[1][batch_idx]['x']
+				y_arr = target[1][batch_idx]['y']
+				unsqueeze = torch.unsqueeze(target[1][batch_idx]['normal'],1).cuda()
+				p2 = Variable(torch.zeros(3,input.size(2), target[1][batch_idx]['n_point'])).cuda()
+				p2.scatter_(1,y_arr.view(1,-1).repeat(3,1).view(3,1,-1),unsqueeze)
+				gt_normal_map[batch_idx,:,:,:].index_add_(2,x_arr,p2)
+
+			gt_normal_mask = self.shift_mask(_gt_normal_mask[:,0:1,:,:])#Check this!
+
+			normal_to_depth_output = self.normal_to_depth(depth_input=input[n_depth:],normal_input = gt_normal_map)
+			# replicated_depth = Variable(torch.zeros(n_normal, 4*input.size(1), input.size(2), input.size(3))).cuda()
+			replicated_depth = input[n_depth:].repeat(1,4,1,1)#Check this!
+
+			__loss_normal = self.w_normal * self.normal_crit([normal_to_depth_output, gt_normal_mask], replicated_depth)
+			output = output+__loss_normal
+
+		return output

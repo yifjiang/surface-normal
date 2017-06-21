@@ -27,10 +27,10 @@ class ABC_sum(nn.Module):
 				self.constant_X_Y_1[0,y,x] = (x+_offset_x - camera['cx'])/camera['fx']
 				self.constant_X_Y_1[1,y,x] = (y+_offset_y - camera['cy'])/camera['fy']
 
-		self.constant_X_Y_1[2].fill_(1.0)
+		self.constant_X_Y_1[2].data.fill_(1.0)
 
 	def forward(self, input):
-		output = Variable(torch.Tensor(input.size()[0],1,input.size()[0],input.size()[1]).cuda())
+		output = Variable(torch.Tensor(input.size()[0],1,input.size()[2],input.size()[3]).cuda())
 		for batch_idx in range(0,input.size()[0]):
 			output[batch_idx] = torch.sum(self.constant_X_Y_1*input[batch_idx], 0)
 		
@@ -63,7 +63,7 @@ class elementwise_shift(nn.Module):
 		self.mode = mode
 
 	def forward(self, input):
-		output = Variable(torch.zeros(input.size()[0],1,input.size()[0],input.size()[1]).cuda())
+		output = Variable(torch.zeros(input.size()[0],1,input.size()[2],input.size()[3]).cuda())
 		width = input.size()[3]
 		height = input.size()[2]
 		if self.mode == 'left':
@@ -95,8 +95,8 @@ class Model(nn.Module):
 		super(Model, self).__init__()
 		self.ABC_right = ABC_sum('right',camera)
 		self.ABC_left = ABC_sum('left',camera)
-		self.ABC_down = ABC_down('down',camera)
-		self.ABC_up = ABC_up('up', camera)
+		self.ABC_down = ABC_sum('down',camera)
+		self.ABC_up = ABC_sum('up', camera)
 
 		self.z_i_left = elementwise_shift('right')
 		self.z_i_right = elementwise_shift('left')
@@ -171,3 +171,20 @@ class Mask(nn.Module):
 
 def get_shift_mask():
 	return Mask()
+
+if __name__ == '__main__':
+	camera = {
+		'input_width' : 4,
+		'input_height' : 5,
+		'cx' : 1,
+		'cy' : -2,
+		'fx' : 2,
+		'fy' : 3
+		}
+	normal_to_depth = get_theoretical_depth(camera).cuda()
+	input = Variable(torch.rand(1,1,5,4)).cuda()
+	normal = Variable(torch.rand(1,3,5,4)).cuda()
+	print(normal_to_depth(input,normal))
+
+	shift_mask = get_shift_mask()
+	

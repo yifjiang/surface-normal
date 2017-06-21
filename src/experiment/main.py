@@ -146,6 +146,8 @@ elif g_args.m == 'hourglass_softplus':
     from models.hourglass_softplus import *
 elif g_args.m == 'hourglass_softplus_margin_log':
     from models.hourglass_softplus_margin_log import *
+elif g_args.m == 'hourglass_softplus_margin_log_depth_from_normal':
+    from models.hourglass_softplus_margin_log_depth_from_normal import *
 else:
     exec(open('models/'+g_args.m+'.py').read())#TODO
 
@@ -222,8 +224,8 @@ for i in range(0,g_args.it):
 
     if i % g_args.et == 0:
         print('Evaluatng at iteration {}'.format(i))
-        train_eval_loss, train_eval_WKDR, _train_normal_loss, _train_angle_diff, _train_rmse, _train_rmse_si, _train_lsi = evaluate(g_train_during_valid_loader, g_model, g_criterion, 10) #TODO
-        valid_eval_loss, valid_eval_WKDR, _valid_normal_loss, _valid_angle_diff, _valid_rmse, _valid_rmse_si, _valid_lsi = evaluate(valid_loader, g_model, g_criterion, 10)
+        train_eval_loss, train_eval_WKDR, _train_normal_loss, _train_angle_diff, _train_rmse, _train_rmse_si, _train_lsi = evaluate(g_train_during_valid_loader, g_model, g_criterion, 100) #TODO
+        valid_eval_loss, valid_eval_WKDR, _valid_normal_loss, _valid_angle_diff, _valid_rmse, _valid_rmse_si, _valid_lsi = evaluate(valid_loader, g_model, g_criterion, 100)
         print("train_eval_loss:",train_eval_loss, "; train_eval_WKDR:" ,train_eval_WKDR)
         print("valid_eval_loss:", valid_eval_loss, "; valid_eval_WKDR:", valid_eval_WKDR)
 

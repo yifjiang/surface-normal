@@ -24,9 +24,10 @@ def angle_diff(input, target):
 
 	if torch.sum(mask_gt1) > 0:
 		print(">>>>>>>> Greater than 1 cos!")
+		print(cos[cos>1])
 	if torch.sum(mask_lt_1) > 0:
 		print(">>>>>>>> Less than -1 cos!")
-
+		print(cos[cos<-1])
 	return torch.sum(acos)
 
 
@@ -38,7 +39,7 @@ def _classify(z_A,z_B,ground_truth,thresh):
 	elif z_A - z_B <= thresh and z_A - z_B >= -thresh: #this may be unecessary
 		_classify_res = 0
 	else:
-		print("z_A - z_B exception")
+		print("z_A - z_B exception:", z_A-z_B)
 		assert(False)
 	return (_classify_res == ground_truth)#note the type of the return value!
 
@@ -81,7 +82,7 @@ def normalize_with_mean_std(input, mean, std):
 
 	return normed_input
 
-def visulize_depth(z, filename):
+def visualize_depth(z, filename):
 	_z_img = z.clone()
 	_z_img-=torch.min(_z_img)
 	_z_img/=torch.max(_z_img)

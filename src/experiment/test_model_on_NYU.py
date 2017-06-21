@@ -163,7 +163,7 @@ def normalize_output_depth_with_NYU_mean_std(input):
 	transformed_z += mean_of_NYU_training
 
 	if torch.sum(transformed_z<0) > 0:
-		transformed_z = (transformed_z<0)*(torch.min(transformed_z>0)+0.00001)+transformed_z*(1- transformed_z<0)
+		transformed_z = (transformed_z<0).float()*(torch.min(transformed_z>0)+0.00001)+transformed_z*(1- transformed_z<0).float()
 
 	return transformed_z
 
@@ -324,14 +324,14 @@ min_WKDR_i = 0
 
 for i in range(0,n_thresh):
 	overall_summary[i,0] = thresh[i]
-	overall_summary[i,1] = WKDR[0,i]#-TODO: check the dimension
-	overall_summary[i,2] = WKDR_eq[0,i]
-	overall_summary[i,3] = WKDR_neq[0,i]
-	if max(WKDR_eq[0,i], WKDR_neq[0,i])<min_max:
-		min_max = max(WKDR_eq[0,i], WKDR_neq[0,i])
+	overall_summary[i,1] = WKDR[i]#-TODO: check the dimension
+	overall_summary[i,2] = WKDR_eq[i]
+	overall_summary[i,3] = WKDR_neq[i]
+	if max(WKDR_eq[i], WKDR_neq[i])<min_max:
+		min_max = max(WKDR_eq[i], WKDR_neq[i])
 		min_max_i = i
-	if WKDR[0,i] < min_WKDR:
-		min_WKDR = WKDR[0,i]
+	if WKDR[i] < min_WKDR:
+		min_WKDR = WKDR[i]
 		min_WKDR_i = i
 
 if cmd_params.thresh < 0:

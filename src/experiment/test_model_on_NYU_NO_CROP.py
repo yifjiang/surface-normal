@@ -178,6 +178,110 @@ def metric_error(gtz, z):
 
 	return fmse, fmselog, flsi, fabsrel, fsqrrel
 
+def find_least_square_scale_shift_XYZ(src_XYZ, dst_XYZ):
+	n_point = src_XYZ.size(0)
+	if n_point == 1:
+		transformed_XYZ = dst_XYZ.clone()
+		return transformed_XYZ
+
+	XTX_11 = torch.sum(torch.pow(src_XYZ, 2))
+	XTX_12 = torch.sum(src_XYZ[:,0])
+	XTX_13 = torch.sum(src_XYZ[:,1])
+	XTX_14 = torch.sum(src_XYZ[:,2])
+
+	XTY_1 = torch.sum(src_XYZ*dst_XYZ)
+	XTY_2 = torch.sum(dst_XYZ[:,0])
+	XTY_3 = torch.sum(dst_XYZ[:,1])
+	XTY_4 = torch.sum(dst_XYZ[:,2])
+
+	XTX = torch.Tensor([[XTX_11, XTX_12, XTX_13, XTX_14],[XTX_12, n_point, 0,0],[XTX_13, 0, n_point, 0],[XTX_14,0,0,n_point]])
+	XTY = torch.Tensor([[XTY_1],[XTY_2],[XTY_3],[XTY_4]])
+
+	inv_XTX = torch.inverse(XTX)
+	solution = torch.mm(inv_XTX, XTY)
+
+	transformed_XYZ = src_XYZ.clone()
+	transformed_XYZ[:,0]=transformed_XYZ[:,0]*solution[0,0]+solution[1,0]
+	transformed_XYZ[:,1]=transformed_XYZ[:,1]*solution[0,0]+solution[2,0]
+	transformed_XYZ[:,2]=transformed_XYZ[:,2]*solution[0,0]+solution[3,0]
+
+	return transformed_XYZ
+
+def find_least_square_scale(src_z, dst_z):
+	transformed_z =  src_z.clone()
+	src_mean = torch.mean(src_z)
+	ne_mask = (src_z != src_mean)
+
+	if torch.sum(ne_mask) < src_z.numel():
+		dst_mean = torch.mean(dst_z)
+		transformed_z = transformed_z - src_mean + dst_mean
+	else:
+		s_T_s = torch.sum(torch.pow(src_z, 2))
+		s_T_d = torch.sum(src_z*dst_z)
+		solution = s_T_d/s_T_s
+		transformed_z = transformed_z*solution
+
+	return transformed_z
+
+def find_least_square_scale_shift(src_z, dst_z):
+	transformed_z = src_z.clone()
+	src_mean = torch.mean(src_z)
+	ne_mask = (src_z != src_mean)
+	if torch.sum(ne_mask) < src_z.numel():
+		dst_mean = torch.mean(dst_z)
+		transformed_z = transformed_z - src_mean + dst_mean
+	else:
+		s_T_s = torch.sum(torch.pow(src_z, 2))
+		s_T_1 = torch.sum(src_z)
+		s_T_d = torch.sum(src*dst_z)
+		d_T_1 = torch.sum(dst_z)
+		n_element = src_z.numel()
+
+		XTX = torch.Tensor([[s_T_s, s_T_1],[s_T_1, n_element]])
+		XTY = torch.Tensor([[s_T_d],[d_T_1]])
+
+		inv_XTX = torch.inverse(XTX)
+		solution = torch.mm(inv_XTX, XTY)
+		transformed_z = transformed_z*solution[0,0]
+		transformed_z = transformed_z+solution[1,0]
+
+	return transformed_z
+
+def _f_img_coord_to_world_coord_480_640(z):
+	_fx_rgb = 5.1885790117450188e+02;
+	_fy_rgb = -5.1946961112127485e+02;
+	_cx_rgb = 3.2558244941119034e+02;
+	_cy_rgb = 2.5373616633400465e+02;
+
+	mesh_grid_X = torch.Tensor(480,640).cuda()
+	mesh_grid_Y = torch.Tensor(480,640).cuda()
+	for y in range(0,480):
+		for x in range(0,640):
+			mesh_grid_X[y,x] = (x - _cx_rgb)/_fx_rgb
+			mesh_grid_Y[y,x] = (y - _cy_rgb)/_fy_rgb
+
+	XYZ = torch.Tensor(3,480,640).cuda()
+	XYZ[0].copy_(z)
+	XYZ[1].copy_(z)
+	XYZ[2].copy_(z)
+
+	XYZ[0] = XYZ[0]*mesh_grid_X
+	XYZ[1] = XYZ[1]*mesh_grid_Y
+
+	return XYZ
+
+def _select_masked_XYZ(XYZ, mask_2D):
+	n_points = XYZ[0].masked_select(mask_2D).numel()
+	XTZ_masked = torch.Tensor(n_points, 3).cuda()
+
+	XYZ_masked[:,0].copy_(XYZ[0].masked_select(mask_2D))
+	XYZ_masked[:,1].copy_(XYZ[1].masked_select(mask_2D))
+	XYZ_masked[:,2].copy_(XYZ[2].masked_select(mask_2D))
+
+	return XYZ_masked
+
+
+
 def normalize_output_depth_with_NYU_mean_std(input):
 	std_of_NYU_training = 0.6148231626
 	mean_of_NYU_training = 2.8424594402

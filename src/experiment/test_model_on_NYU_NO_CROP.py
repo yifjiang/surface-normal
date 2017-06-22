@@ -280,6 +280,34 @@ def _select_masked_XYZ(XYZ, mask_2D):
 
 	return XYZ_masked
 
+def save_mesh_XYZ(filename, XYZ):
+	file = open(filename, 'w')
+	n_point = XYZ.size(0)
+	for i in range(0,n_point):
+		file.write('v {} {} {} {}\n'.format(XYZ[i,0],XYZ[i,1],-XYZ[i,2]))
+	file.close()
+
+def object_scale_invariant_error(gtz, pred_z, filename):
+	gt_XYZ = _f_img_coord_to_world_coord_480_640(gtz)
+	pred_XYZ = _f_img_coord_to_world_coord_480_640(pred_z)
+
+	mask_h5filename = filename.replace('.png','_object_masks.h5')
+	myFile = h5py.File(mask_h5filename, 'r')
+	mask = myFile['/object_mask']
+	mask = mask.transpose(1,2)
+	mask = mask > 0
+	#TODO
+
+def img_scale_invariant_error(gtz, pred_z):
+	mask = torch.ByteTensor(gtz.size(0), gtz.size(1)).fill_(1)
+	gtz_img = gtz.masked_select(mask)
+	pred_z_img = pred_z.masked_select(mask)
+
+	pred_z_img = find_least_square_scale_shift(pred_z_img, gtz_img)
+
+	s_i_error_sum = torch.sum(torch.pow(gtz_img-pred_z_img, 2))
+	return s_i_error_sum/gtz_img.numel()
+
 
 
 def normalize_output_depth_with_NYU_mean_std(input):
@@ -296,6 +324,39 @@ def normalize_output_depth_with_NYU_mean_std(input):
 		transformed_z = (transformed_z<0)*(torch.min(transformed_z>0)+0.00001)+transformed_z*(1- transformed_z<0)
 
 	return transformed_z
+
+def normalize_output_depth_with_gtz(input, gt_z):
+	gt_mean = torch.mean(gt_z)
+	gt_std = torch.std(gt_z - gt_mean)
+
+	predicted_z_4D = input.clone()
+	predicted_z_4D -= torch.mean(predicted_z_4D)
+	predicted_z_4D /= torch.mean(predicted_z_4D)
+	predicted_z_4D *= gt_std
+	predicted_z_4D += gt_mean
+
+	if torch.sum(predicted_z_4D<0)>0:
+		predicted_z_4D[predicted_z_4D<0] = torch.min(predicted_z_4D[predicted_z_4D>0])+0.00001
+
+	return predicted_z_4D
+
+def save_mesh(filename, XYZ):
+	file = open(filename, 'r')
+	img_height = XYZ.size(2)
+	img_width = XYZ.size(3)
+	for y in range(0,img_height):
+		for x in range(0,img_width):
+			file.write('v {} {} {}\n'.format(XYZ[0,0,y,x], XYZ[0,1,y,x], XYZ[0,2,y,x]))
+
+	for y in range(0,img_height-1):
+		for x in range(0,img_width-1):
+			this_index = (y)*img_width + x
+			file.write('f {} {} {}\n'.format(this_index, this_index + img_width, this_index+1))
+			file.write('f {} {} {}\n'.format(this_index+img_width, this_index+img_width+1, this_index+1))
+
+	#TODO: check this
+	file.close()
+	print('Done saving mesh to',filename)
 
 ### main entry ###
 
